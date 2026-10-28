@@ -21,6 +21,10 @@ cni_ns=$(kubectl get ds -A -l k8s-app=istio-cni-node -o jsonpath='{.items[0].met
 kubectl -n "$cni_ns" rollout status ds/istio-cni-node --timeout=300s
 kubectl get pods -n istio-system -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.containers[0].image}{"\n"}{end}' >&2
 
+kubectl label namespace default istio-injection=disabled --overwrite
+kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+kubectl label namespace monitoring istio-injection=disabled --overwrite
+
 log "installing Prometheus chart ${PROMETHEUS_CHART_VERSION}"
 rules_values="${RUNNER_TEMP:-/tmp}/prometheus-rules-values.yaml"
 {

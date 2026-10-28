@@ -27,6 +27,7 @@ kind: Namespace
 metadata:
   name: external
   labels:
+    istio-injection: disabled
     pod-security.kubernetes.io/enforce: restricted
 ---
 apiVersion: v1
@@ -103,7 +104,6 @@ metadata:
   labels:
     app: test-no-sidecar
     zt-role: orders
-  annotations:
     # No sidecar, so no mesh certificate. The orders role label lets the
     # NetworkPolicy pass the connection, so this case checks the mTLS layer.
     sidecar.istio.io/inject: "false"

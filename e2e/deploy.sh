@@ -51,7 +51,7 @@ for pod in $(kubectl -n apps get pods -o name); do
 done
 
 log "istioctl analyze"
-"$ISTIOCTL" analyze -A --failure-threshold Error | tee "${RESULTS_DIR}/istioctl-analyze.txt" >&2
+"$ISTIOCTL" analyze -A --failure-threshold Warning | tee "${RESULTS_DIR}/istioctl-analyze.txt" >&2
 
 kubectl get pods -A -o wide >&2
 log "deployed"

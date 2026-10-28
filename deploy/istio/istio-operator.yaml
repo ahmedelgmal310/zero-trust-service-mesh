@@ -52,5 +52,9 @@ spec:
             memory: 48Mi
     pilot:
       image: docker.io/istio/pilot:1.31.1@sha256:aeda10476eecca07f7d3a2776eda30d0452c133ea87b40335bc6031fb01de789
+      env:
+        # JWKS is configured inline, so istiod never needs to fetch a jwksUri.
+        # Block all remote JWKS fetches (prevents SSRF through a jwksUri).
+        BLOCKED_CIDRS_IN_JWKS_URIS: "0.0.0.0/0,::/0"
     cni:
       image: docker.io/istio/install-cni:1.31.1@sha256:5b749f2148dea452f37f00443e4fffa61e280e05d124eba53ecdc1727f76123b

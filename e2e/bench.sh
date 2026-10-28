@@ -49,7 +49,7 @@ done
 # Report the median of the rounds (with 2 rounds: their mean) per mode.
 printf '%s\n' "${rows[@]}" | jq -s --argjson qps "$QPS" --argjson c "$CONNS" --arg d "$DURATION" '
   def med(f): (map(f) | sort) as $v | if ($v|length) % 2 == 1 then $v[($v|length)/2|floor] else (($v[($v|length)/2 - 1] + $v[($v|length)/2]) / 2) end;
-  def summary(m): map(select(.mode == m)) | {p50_ms: med(.p50_ms), p90_ms: med(.p90_ms), p95_ms: med(.p95_ms), p99_ms: med(.p99_ms)};
+  def summary(m): map(select(.mode == m)) | {p50_ms: med(.p50_ms), p90_ms: med(.p90_ms), p95_ms: med(.p95_ms), p99_ms: med(.p99_ms)} | map_values(. * 1000 | round / 1000);
   {settings: {qps: $qps, connections: $c, duration: $d, rounds: (map(.round) | max)},
    runs: ., no_mesh: summary("no-mesh"), mesh: summary("mesh")}
   | .overhead_ms = {p50: ((.mesh.p50_ms - .no_mesh.p50_ms) * 1000 | round / 1000),
