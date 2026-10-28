@@ -1,0 +1,101 @@
+# Identity-based allow rules. Each policy names the exact caller identity
+# (SPIFFE principal from its mTLS certificate), HTTP method and path.
+# Anything not listed falls through to the mesh-wide allow-nothing policy.
+#
+#   gateway  -> frontend  GET /, POST /checkout
+#   gateway  -> reports   GET /reports
+#   frontend -> orders    POST /orders
+#   orders   -> payments  POST /charge
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: frontend
+  namespace: apps
+spec:
+  selector:
+    matchLabels:
+      app: frontend
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account"]
+      to:
+        - operation:
+            methods: ["GET"]
+            paths: ["/"]
+        - operation:
+            methods: ["POST"]
+            paths: ["/checkout"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: reports
+  namespace: apps
+spec:
+  selector:
+    matchLabels:
+      app: reports
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account"]
+      to:
+        - operation:
+            methods: ["GET"]
+            paths: ["/reports"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: orders
+  namespace: apps
+spec:
+  selector:
+    matchLabels:
+      app: orders
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/apps/sa/frontend"]
+      to:
+        - operation:
+            methods: ["POST"]
+            paths: ["/orders"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: payments
+  namespace: apps
+spec:
+  selector:
+    matchLabels:
+      app: payments
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/apps/sa/orders"]
+      to:
+        - operation:
+            methods: ["POST"]
+            paths: ["/charge"]
+---
+# Limit what each sidecar in apps can even route to: its own namespace and
+# the control plane. Together with REGISTRY_ONLY this is the mesh egress policy.
+apiVersion: networking.istio.io/v1
+kind: Sidecar
+metadata:
+  name: default
+  namespace: apps
+spec:
+  egress:
+    - hosts:
+        - "./*"
+        - "istio-system/*"
+  outboundTrafficPolicy:
+    mode: REGISTRY_ONLY

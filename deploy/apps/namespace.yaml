@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apps
+  labels:
+    istio-injection: enabled
+    # istio-cni removes the need for a NET_ADMIN init container, so the
+    # namespace can enforce the strictest Pod Security Standard.
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+# One ServiceAccount per workload: each becomes a distinct SPIFFE identity,
+# spiffe://cluster.local/ns/apps/sa/<name>, which the AuthorizationPolicies use.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: frontend
+  namespace: apps
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: orders
+  namespace: apps
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: payments
+  namespace: apps
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: reports
+  namespace: apps
+automountServiceAccountToken: false

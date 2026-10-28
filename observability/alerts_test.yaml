@@ -1,0 +1,96 @@
+# promtool test rules observability/alerts_test.yaml
+rule_files:
+  - alerts.yaml
+
+evaluation_interval: 30s
+
+tests:
+  # 1 denial/s from reports to payments for 10 minutes: fires after 1m pending.
+  - interval: 30s
+    input_series:
+      - series: 'istio_requests_total{reporter="destination", response_code="403", source_workload="reports", source_workload_namespace="apps", destination_workload="payments", destination_workload_namespace="apps", connection_security_policy="mutual_tls"}'
+        values: '0+30x20'
+      # Allowed traffic on the same pair never counts.
+      - series: 'istio_requests_total{reporter="destination", response_code="201", source_workload="orders", source_workload_namespace="apps", destination_workload="payments", destination_workload_namespace="apps", connection_security_policy="mutual_tls"}'
+        values: '0+300x20'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: AuthorizationDenialsSpike
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: AuthorizationDenialsSpike
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              source_workload: reports
+              source_workload_namespace: apps
+              destination_workload: payments
+              destination_workload_namespace: apps
+            exp_annotations:
+              summary: "apps/reports is being denied by apps/payments"
+              description: "1 denied requests/s over 5m (threshold 0.2/s for 1m). Check recent AuthorizationPolicy changes and the caller's deploy history."
+              runbook: "https://github.com/ahmedelgmal310/zero-trust-service-mesh#runbook"
+      - eval_time: 5m
+        alertname: PlaintextTrafficAccepted
+        exp_alerts: []
+
+  # A handful of denials (0.05/s) stays below the threshold.
+  - interval: 1m
+    input_series:
+      - series: 'istio_requests_total{reporter="destination", response_code="403", source_workload="frontend", source_workload_namespace="apps", destination_workload="orders", destination_workload_namespace="apps", connection_security_policy="mutual_tls"}'
+        values: '0+3x15'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: AuthorizationDenialsSpike
+        exp_alerts: []
+
+  # Gateway: 50% of 2 req/s rejected for 10 minutes -> fires after 5m pending.
+  - interval: 1m
+    input_series:
+      - series: 'istio_requests_total{reporter="source", source_workload="istio-ingressgateway", response_code="401"}'
+        values: '0+60x15'
+      - series: 'istio_requests_total{reporter="source", source_workload="istio-ingressgateway", response_code="201"}'
+        values: '0+60x15'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: IngressAuthFailuresHigh
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: IngressAuthFailuresHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "More than 25% of ingress requests are rejected as unauthenticated or unauthorized"
+              description: "50% of gateway requests got 401/403 over 5m."
+              runbook: "https://github.com/ahmedelgmal310/zero-trust-service-mesh#runbook"
+
+  # Low absolute volume: one rejected request out of two in the window does not page.
+  - interval: 1m
+    input_series:
+      - series: 'istio_requests_total{reporter="source", source_workload="istio-ingressgateway", response_code="401"}'
+        values: '0+1x15'
+      - series: 'istio_requests_total{reporter="source", source_workload="istio-ingressgateway", response_code="200"}'
+        values: '0+1x15'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: IngressAuthFailuresHigh
+        exp_alerts: []
+
+  # Any plaintext request accepted by a sidecar is critical.
+  - interval: 1m
+    input_series:
+      - series: 'istio_requests_total{reporter="destination", response_code="200", destination_workload="payments", destination_workload_namespace="apps", connection_security_policy="none"}'
+        values: '0+5x10'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: PlaintextTrafficAccepted
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              destination_workload: payments
+              destination_workload_namespace: apps
+            exp_annotations:
+              summary: "apps/payments accepted non-mTLS traffic"
+              description: "Sidecar reported requests with connection_security_policy != mutual_tls. Check PeerAuthentication objects."
+              runbook: "https://github.com/ahmedelgmal310/zero-trust-service-mesh#runbook"

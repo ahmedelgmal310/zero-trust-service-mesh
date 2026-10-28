@@ -1,0 +1,18 @@
+# build and test output
+/bin/
+/dist/
+coverage.out
+*.test
+e2e-results/
+# never commit created JWT keys or tokens
+*.jwt
+jwks.json
+
+# editors / OS
+.idea/
+.vscode/
+.DS_Store
+
+# local tooling state
+.omc/
+.impeccable/

@@ -1,0 +1,197 @@
+# Test clients for the policy conformance matrix (e2e/conformance.tsv). Each
+# one is an idle curl pod that e2e/conformance.sh runs ordinary HTTP requests
+# from, so a case can be checked from a given identity and namespace.
+#
+#   apps/test-as-orders     SA orders, sidecar   -> what the orders identity may do
+#   apps/test-as-reports    SA reports, sidecar  -> what the reports identity may do
+#   apps/test-no-sidecar    no sidecar           -> plaintext must be refused
+#   other/test-other-ns     other namespace      -> cross-namespace must be refused
+#   external/test-end-user  outside the mesh     -> end-user traffic via the gateway
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: test-client
+  namespace: apps
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: other
+  labels:
+    istio-injection: enabled
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-as-orders
+  namespace: apps
+  labels:
+    app: test-as-orders
+    zt-role: orders
+spec:
+  serviceAccountName: orders
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 100
+    runAsGroup: 101
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: client
+      image: docker.io/curlimages/curl:8.22.0@sha256:43366cd60f226c7655181a0f7e85c468a41d182fdd2dc2c1c3b872a2b9d05d7a
+      command: ["sleep", "86400"]
+      resources:
+        requests:
+          cpu: 5m
+          memory: 8Mi
+        limits:
+          memory: 32Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-as-reports
+  namespace: apps
+  labels:
+    app: test-as-reports
+    zt-role: reports
+spec:
+  serviceAccountName: reports
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 100
+    runAsGroup: 101
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: client
+      image: docker.io/curlimages/curl:8.22.0@sha256:43366cd60f226c7655181a0f7e85c468a41d182fdd2dc2c1c3b872a2b9d05d7a
+      command: ["sleep", "86400"]
+      resources:
+        requests:
+          cpu: 5m
+          memory: 8Mi
+        limits:
+          memory: 32Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-no-sidecar
+  namespace: apps
+  labels:
+    app: test-no-sidecar
+    zt-role: orders
+  annotations:
+    # No sidecar, so no mesh certificate. The orders role label lets the
+    # NetworkPolicy pass the connection, so this case checks the mTLS layer.
+    sidecar.istio.io/inject: "false"
+spec:
+  serviceAccountName: test-client
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 100
+    runAsGroup: 101
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: client
+      image: docker.io/curlimages/curl:8.22.0@sha256:43366cd60f226c7655181a0f7e85c468a41d182fdd2dc2c1c3b872a2b9d05d7a
+      command: ["sleep", "86400"]
+      resources:
+        requests:
+          cpu: 5m
+          memory: 8Mi
+        limits:
+          memory: 32Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-other-ns
+  namespace: other
+  labels:
+    app: test-other-ns
+spec:
+  serviceAccountName: default
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 100
+    runAsGroup: 101
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: client
+      image: docker.io/curlimages/curl:8.22.0@sha256:43366cd60f226c7655181a0f7e85c468a41d182fdd2dc2c1c3b872a2b9d05d7a
+      command: ["sleep", "86400"]
+      resources:
+        requests:
+          cpu: 5m
+          memory: 8Mi
+        limits:
+          memory: 32Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-end-user
+  namespace: external
+  labels:
+    app: test-end-user
+spec:
+  serviceAccountName: default
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 100
+    runAsGroup: 101
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: client
+      image: docker.io/curlimages/curl:8.22.0@sha256:43366cd60f226c7655181a0f7e85c468a41d182fdd2dc2c1c3b872a2b9d05d7a
+      command: ["sleep", "86400"]
+      resources:
+        requests:
+          cpu: 5m
+          memory: 8Mi
+        limits:
+          memory: 32Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]

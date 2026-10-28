@@ -1,0 +1,56 @@
+# Istio 1.31.1, sidecar mode with istio-cni (no privileged istio-init container,
+# so application namespaces can enforce the "restricted" Pod Security Standard).
+# Installed with: istioctl install -f deploy/istio/istio-operator.yaml -y
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: zero-trust
+  namespace: istio-system
+spec:
+  profile: default
+  meshConfig:
+    # Egress control: sidecars only route to hosts in the service registry.
+    # Unknown external hosts are sent to the BlackHoleCluster.
+    outboundTrafficPolicy:
+      mode: REGISTRY_ONLY
+    accessLogFile: /dev/stdout
+    accessLogEncoding: JSON
+  components:
+    cni:
+      enabled: true
+    ingressGateways:
+      - name: istio-ingressgateway
+        enabled: true
+        k8s:
+          service:
+            type: ClusterIP
+            ports:
+              - name: http2
+                port: 80
+                targetPort: 8080
+              - name: status-port
+                port: 15021
+                targetPort: 15021
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+    pilot:
+      k8s:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+  values:
+    global:
+      proxy:
+        # Pinned by digest. Istio uses an image value containing "/" verbatim.
+        image: docker.io/istio/proxyv2:1.31.1@sha256:dc3e45795272bf93b30b8b1968e279fbfd5dcc05154cc35e0d13734d23c5b524
+        resources:
+          requests:
+            cpu: 10m
+            memory: 48Mi
+    pilot:
+      image: docker.io/istio/pilot:1.31.1@sha256:aeda10476eecca07f7d3a2776eda30d0452c133ea87b40335bc6031fb01de789
+    cni:
+      image: docker.io/istio/install-cni:1.31.1@sha256:5b749f2148dea452f37f00443e4fffa61e280e05d124eba53ecdc1727f76123b

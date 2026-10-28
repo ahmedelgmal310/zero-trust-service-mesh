@@ -1,0 +1,31 @@
+# Policy conformance matrix. One ordinary HTTP request per row, sent with curl
+# from a test client pod (deploy/conformance/test-clients.yaml).
+#
+# expect:  a status code (e.g. 201)  -> must be answered with exactly that code
+#          denied                    -> 401/403 from the mesh, or no connection
+#          refused                   -> the connection itself must fail
+# token:   a fixture name from cmd/tokengen, or "-" for none
+# body:    JSON request body, or "-" for none
+#
+# id	client	method	url	token	body	expect	description
+allow-checkout	external/test-end-user	POST	GW/checkout	valid-customer	{"item":"book","amount_cents":1250}	201	End user with a valid token checks out (gateway -> frontend -> orders -> payments)
+allow-index	external/test-end-user	GET	GW/	valid-customer	-	200	End user with a valid token loads the frontend
+allow-reports-analyst	external/test-end-user	GET	GW/reports	valid-analyst	-	200	Analyst (role=analyst claim) reads reports through the gateway
+allow-orders-charge	apps/test-as-orders	POST	http://payments.apps.svc.cluster.local:8080/charge	-	{"order_id":"conf-1","amount_cents":100}	201	orders identity calls POST /charge on payments
+deny-plaintext	apps/test-no-sidecar	POST	http://payments.apps.svc.cluster.local:8080/charge	-	{"order_id":"conf-2","amount_cents":100}	refused	Pod without a sidecar sends plaintext to payments (STRICT mTLS)
+deny-reports-to-payments	apps/test-as-reports	POST	http://payments.apps.svc.cluster.local:8080/charge	-	{"order_id":"conf-3","amount_cents":100}	denied	reports identity calls payments
+deny-reports-to-orders	apps/test-as-reports	POST	http://orders.apps.svc.cluster.local:8080/orders	-	{"item":"x","amount_cents":1}	denied	reports identity calls orders
+deny-wrong-method	apps/test-as-orders	DELETE	http://payments.apps.svc.cluster.local:8080/charge	-	-	403	orders identity, allowed callee, wrong method (DELETE /charge)
+deny-wrong-path	apps/test-as-orders	GET	http://payments.apps.svc.cluster.local:8080/admin/refunds	-	-	403	orders identity, allowed callee, wrong path (GET /admin/refunds)
+deny-other-ns-orders	other/test-other-ns	POST	http://orders.apps.svc.cluster.local:8080/orders	-	{"item":"x","amount_cents":1}	denied	Meshed pod in namespace "other" calls orders
+deny-other-ns-payments	other/test-other-ns	POST	http://payments.apps.svc.cluster.local:8080/charge	-	{"order_id":"conf-4","amount_cents":100}	denied	Meshed pod in namespace "other" calls payments
+deny-egress-external	apps/test-as-orders	GET	https://example.com/	-	-	refused	Outbound request from the apps namespace to an external host (egress policy)
+deny-no-token	external/test-end-user	POST	GW/checkout	-	{"item":"book","amount_cents":1250}	403	Checkout without a token
+deny-expired-token	external/test-end-user	POST	GW/checkout	expired	{"item":"book","amount_cents":1250}	401	Checkout with an expired token
+deny-forged-token	external/test-end-user	POST	GW/checkout	forged	{"item":"book","amount_cents":1250}	401	Token signed by an untrusted key that reuses the real key ID
+deny-wrong-issuer	external/test-end-user	POST	GW/checkout	wrong-issuer	{"item":"book","amount_cents":1250}	401	Token from an issuer the gateway does not trust
+deny-wrong-audience	external/test-end-user	POST	GW/checkout	wrong-audience	{"item":"book","amount_cents":1250}	denied	Token minted for a different audience
+deny-alg-none	external/test-end-user	POST	GW/checkout	alg-none	{"item":"book","amount_cents":1250}	401	Unsigned token ("alg": "none")
+deny-tampered-token	external/test-end-user	GET	GW/reports	tampered	-	401	Valid token whose payload was edited to role=analyst
+deny-customer-reports	external/test-end-user	GET	GW/reports	valid-customer	-	403	Valid token without the analyst role reads reports
+deny-gateway-admin	external/test-end-user	GET	GW/admin/refunds	valid-customer	-	403	Valid token, path not exposed at the edge

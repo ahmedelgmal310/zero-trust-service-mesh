@@ -1,0 +1,73 @@
+# Edge: the ingress gateway is the only way in for end users.
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: zt-gateway
+  namespace: istio-system
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts: ["*"]
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: zt-shop
+  namespace: apps
+spec:
+  hosts: ["*"]
+  gateways: ["istio-system/zt-gateway"]
+  http:
+    - match:
+        - uri:
+            prefix: /reports
+      route:
+        - destination:
+            host: reports.apps.svc.cluster.local
+            port:
+              number: 8080
+    - route:
+        - destination:
+            host: frontend.apps.svc.cluster.local
+            port:
+              number: 8080
+---
+# End-user authorization at the edge. RequestAuthentication (see
+# request-authentication.tmpl.yaml) only validates tokens that are present;
+# this policy is what makes a valid token mandatory, and adds a claim check.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ingress-require-jwt
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            requestPrincipals: ["https://auth.zt-shop.example/*"]
+      to:
+        - operation:
+            methods: ["GET"]
+            paths: ["/"]
+        - operation:
+            methods: ["POST"]
+            paths: ["/checkout"]
+    - from:
+        - source:
+            requestPrincipals: ["https://auth.zt-shop.example/*"]
+      to:
+        - operation:
+            methods: ["GET"]
+            paths: ["/reports"]
+      when:
+        - key: request.auth.claims[role]
+          values: ["analyst"]

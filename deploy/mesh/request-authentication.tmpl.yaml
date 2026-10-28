@@ -1,0 +1,21 @@
+# JWT validation at the ingress gateway. The JWKS is created at CI time by
+# cmd/tokengen (a fresh key per run, never committed); e2e/deploy.sh replaces
+# __JWKS__ with it before applying.
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: ingress-jwt
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  jwtRules:
+    - issuer: https://auth.zt-shop.example
+      audiences: ["zt-shop"]
+      jwks: '__JWKS__'
+      # The verified "sub" claim is passed to frontend as X-User. Envoy
+      # overwrites any X-User header the client sent.
+      outputClaimToHeaders:
+        - header: x-user
+          claim: sub

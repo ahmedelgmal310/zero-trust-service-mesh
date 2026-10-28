@@ -1,0 +1,255 @@
+# Latency benchmark: the same fortio client -> fortio server hop, once without
+# the mesh (bench-plain) and once inside it (bench-mesh: sidecars on both ends,
+# STRICT mTLS and an identity-based AuthorizationPolicy, like the apps).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bench-plain
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bench-mesh
+  labels:
+    istio-injection: enabled
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fortio-server
+  namespace: bench-plain
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fortio-client
+  namespace: bench-plain
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fortio-server
+  namespace: bench-plain
+spec:
+  selector:
+    app: fortio-server
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fortio-server
+  namespace: bench-plain
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fortio-server
+  template:
+    metadata:
+      labels:
+        app: fortio-server
+    spec:
+      serviceAccountName: fortio-server
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: fortio
+          image: docker.io/fortio/fortio:1.75.3@sha256:8168c905da44800596ff99ca96d161cca11df190d3ed57cabbf28cc81215f4bb
+          args: ["server", "-http-port", "8080", "-grpc-port", "disabled", "-redirect-port", "disabled"]
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 32Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fortio-client
+  namespace: bench-plain
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fortio-client
+  template:
+    metadata:
+      labels:
+        app: fortio-client
+    spec:
+      serviceAccountName: fortio-client
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: fortio
+          image: docker.io/fortio/fortio:1.75.3@sha256:8168c905da44800596ff99ca96d161cca11df190d3ed57cabbf28cc81215f4bb
+          args: ["server", "-http-port", "8080", "-grpc-port", "disabled", "-redirect-port", "disabled"]
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 32Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fortio-server
+  namespace: bench-mesh
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fortio-client
+  namespace: bench-mesh
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fortio-server
+  namespace: bench-mesh
+spec:
+  selector:
+    app: fortio-server
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fortio-server
+  namespace: bench-mesh
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fortio-server
+  template:
+    metadata:
+      labels:
+        app: fortio-server
+    spec:
+      serviceAccountName: fortio-server
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: fortio
+          image: docker.io/fortio/fortio:1.75.3@sha256:8168c905da44800596ff99ca96d161cca11df190d3ed57cabbf28cc81215f4bb
+          args: ["server", "-http-port", "8080", "-grpc-port", "disabled", "-redirect-port", "disabled"]
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 32Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fortio-client
+  namespace: bench-mesh
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fortio-client
+  template:
+    metadata:
+      labels:
+        app: fortio-client
+    spec:
+      serviceAccountName: fortio-client
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: fortio
+          image: docker.io/fortio/fortio:1.75.3@sha256:8168c905da44800596ff99ca96d161cca11df190d3ed57cabbf28cc81215f4bb
+          args: ["server", "-http-port", "8080", "-grpc-port", "disabled", "-redirect-port", "disabled"]
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 32Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: fortio-server
+  namespace: bench-mesh
+spec:
+  selector:
+    matchLabels:
+      app: fortio-server
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/bench-mesh/sa/fortio-client"]
+      to:
+        - operation:
+            methods: ["GET"]
+            paths: ["/echo"]

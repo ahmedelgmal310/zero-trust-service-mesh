@@ -1,0 +1,22 @@
+# Mesh-wide baseline, applied in the Istio root namespace.
+#
+# 1. STRICT mTLS: every sidecar refuses plaintext. A workload without a valid
+#    mesh certificate cannot open a connection to any meshed workload.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: istio-system
+spec:
+  mtls:
+    mode: STRICT
+---
+# 2. Default deny: an ALLOW policy with no rules matches nothing, so every
+#    request to every meshed workload (including the ingress gateway) is
+#    denied unless a more specific ALLOW policy below permits it.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-nothing
+  namespace: istio-system
+spec: {}

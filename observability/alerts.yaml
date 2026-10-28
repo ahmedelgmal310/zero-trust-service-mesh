@@ -1,0 +1,53 @@
+groups:
+  - name: zero-trust-mesh
+    rules:
+      # A burst of 403s from the sidecars means some workload is repeatedly
+      # calling something its identity is not allowed to: a misconfigured
+      # deploy, or a workload behaving in a way it never should.
+      - alert: AuthorizationDenialsSpike
+        expr: |
+          sum by (destination_workload_namespace, destination_workload, source_workload_namespace, source_workload) (
+            rate(istio_requests_total{reporter="destination", response_code="403"}[5m])
+          ) > 0.2
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.source_workload_namespace }}/{{ $labels.source_workload }} is being denied by {{ $labels.destination_workload_namespace }}/{{ $labels.destination_workload }}"
+          description: "{{ $value | humanize }} denied requests/s over 5m (threshold 0.2/s for 1m). Check recent AuthorizationPolicy changes and the caller's deploy history."
+          runbook: "https://github.com/ahmedelgmal310/zero-trust-service-mesh#runbook"
+
+      # End-user authentication failures at the edge (expired, forged or
+      # wrongly-scoped tokens). Ratio-based so normal traffic volume does not
+      # matter; needs a minimum rate so a single bad request does not page.
+      - alert: IngressAuthFailuresHigh
+        expr: |
+          (
+            sum(rate(istio_requests_total{reporter="source", source_workload="istio-ingressgateway", response_code=~"401|403"}[5m]))
+            /
+            sum(rate(istio_requests_total{reporter="source", source_workload="istio-ingressgateway"}[5m]))
+          ) > 0.25
+          and
+          sum(rate(istio_requests_total{reporter="source", source_workload="istio-ingressgateway", response_code=~"401|403"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 25% of ingress requests are rejected as unauthenticated or unauthorized"
+          description: "{{ $value | humanizePercentage }} of gateway requests got 401/403 over 5m."
+          runbook: "https://github.com/ahmedelgmal310/zero-trust-service-mesh#runbook"
+
+      # With STRICT PeerAuthentication this must never happen. If it does,
+      # someone has loosened mTLS (PERMISSIVE/DISABLE) on a workload.
+      - alert: PlaintextTrafficAccepted
+        expr: |
+          sum by (destination_workload_namespace, destination_workload) (
+            rate(istio_requests_total{reporter="destination", connection_security_policy!="mutual_tls"}[5m])
+          ) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.destination_workload_namespace }}/{{ $labels.destination_workload }} accepted non-mTLS traffic"
+          description: "Sidecar reported requests with connection_security_policy != mutual_tls. Check PeerAuthentication objects."
+          runbook: "https://github.com/ahmedelgmal310/zero-trust-service-mesh#runbook"

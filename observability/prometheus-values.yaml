@@ -1,0 +1,53 @@
+# prometheus-community/prometheus 29.35.0: one lean Prometheus server that
+# scrapes the sidecars' merged metrics (pods annotated by Istio injection with
+# prometheus.io/scrape, port 15020, path /stats/prometheus). The alert rules
+# from observability/alerts.yaml are added by e2e/setup.sh.
+alertmanager:
+  enabled: false
+kube-state-metrics:
+  enabled: false
+prometheus-node-exporter:
+  enabled: false
+prometheus-pushgateway:
+  enabled: false
+
+configmapReload:
+  prometheus:
+    enabled: false
+
+server:
+  image:
+    repository: quay.io/prometheus/prometheus
+    tag: v3.15.0
+    digest: sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
+  global:
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    evaluation_interval: 10s
+  retention: 2h
+  persistentVolume:
+    enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+scrapeConfigs:
+  kubernetes-api-servers:
+    enabled: false
+  kubernetes-nodes:
+    enabled: false
+  kubernetes-nodes-cadvisor:
+    enabled: false
+  kubernetes-service-endpoints:
+    enabled: false
+  kubernetes-service-endpoints-slow:
+    enabled: false
+  prometheus-pushgateway:
+    enabled: false
+  kubernetes-services:
+    enabled: false
+  kubernetes-pods-slow:
+    enabled: false
