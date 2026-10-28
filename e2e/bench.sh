@@ -19,8 +19,9 @@ run_load() {
     "http://fortio-server.$1.svc.cluster.local:8080/echo" 2>&1 </dev/null
 }
 
-# pct <report> <percentile>: latency in milliseconds.
-pct() { awk -v p="$2" '$1 == "#" && $2 == "target" && $3 == p"%" { printf "%.3f", $4 * 1000 }' <<<"$1"; }
+# pct <report> <percentile>: request latency in milliseconds. fortio prints the
+# request-time percentiles first and connection-time percentiles later; take the first.
+pct() { awk -v p="$2" '$1 == "#" && $2 == "target" && $3 == p"%" { printf "%.3f", $4 * 1000; exit }' <<<"$1"; }
 
 rows=()
 for round in $(seq 1 "$ROUNDS"); do
